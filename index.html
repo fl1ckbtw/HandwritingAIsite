@@ -203,18 +203,25 @@
         formData.append('image', file);
 
         try {
-            const response = await fetch('http://localhost:5000/recognize', {
+            const response = await fetch('/recognize', {
                 method: 'POST',
                 body: formData
             });
 
-            if (!response.ok) throw new Error('Ошибка сервера');
-
             const data = await response.json();
 
-            resultText.textContent = data.text || '(текст не распознан)';
+            if (!response.ok) {
+                throw new Error(data.message || data.error || 'Ошибка сервера');
+            }
+
+            resultText.textContent = data.text || data.message || '(текст не распознан)';
             result.style.display = 'block';
-            status.textContent = '✅ Готово!';
+
+            if (data.confidence) {
+                status.textContent = `✅ Готово! Точность: ${data.confidence}%`;
+            } else {
+                status.textContent = '✅ Готово!';
+            }
 
         } catch (err) {
             status.className = 'error';
