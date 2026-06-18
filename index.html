@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Распознавание рукописного текста</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        
+        body {
+            font-family: 'Segoe UI', sans-serif;
+            background: #f0f2f5;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .container {
+            background: white;
+            border-radius: 16px;
+            padding: 40px;
+            width: 100%;
+            max-width: 700px;
+            box-shadow: 0 4px 24px rgba(0,0,0,0.1);
+        }
+
+        h1 {
+            text-align: center;
+            color: #1a1a2e;
+            margin-bottom: 8px;
+            font-size: 24px;
+        }
+
+        .subtitle {
+            text-align: center;
+            color: #666;
+            margin-bottom: 32px;
+            font-size: 14px;
+        }
+
+        /* Зона загрузки */
+        .upload-zone {
+            border: 2px dashed #4a90d9;
+            border-radius: 12px;
+            padding: 40px 20px;
+            text-align: center;
+            cursor: pointer;
+            transition: background 0.2s;
+            margin-bottom: 20px;
+        }
+
+        .upload-zone:hover { background: #f0f7ff; }
+
+        .upload-zone p { color: #888; margin-top: 8px; font-size: 14px; }
+
+        #fileInput { display: none; }
+
+        /* Предпросмотр */
+        #preview {
+            display: none;
+            width: 100%;
+            max-height: 300px;
+            object-fit: contain;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            border: 1px solid #eee;
+        }
+
+        /* Кнопка */
+        button {
+            width: 100%;
+            padding: 14px;
+            background: #4a90d9;
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        button:hover { background: #357abd; }
+        button:disabled { background: #aaa; cursor: not-allowed; }
+
+        /* Результат */
+        #result {
+            display: none;
+            margin-top: 24px;
+        }
+
+        #result h3 { color: #333; margin-bottom: 10px; }
+
+        #resultText {
+            background: #f8f9fa;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            padding: 16px;
+            white-space: pre-wrap;
+            font-size: 15px;
+            line-height: 1.6;
+            min-height: 80px;
+            color: #222;
+        }
+
+        /* Статус */
+        #status {
+            text-align: center;
+            margin-top: 12px;
+            color: #888;
+            font-size: 14px;
+        }
+
+        .error { color: #e74c3c !important; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h1>📝 OCR — Распознавание текста</h1>
+    <p class="subtitle">Загрузите фото рукописного текста (русский / английский)</p>
+
+    <!-- Зона загрузки -->
+    <div class="upload-zone" onclick="document.getElementById('fileInput').click()">
+        <svg width="48" height="48" fill="#4a90d9" viewBox="0 0 24 24">
+            <path d="M19 13v6H5v-6H3v6a2 2 0 002 2h14a2 2 0 002-2v-6h-2zm-7-9l-4 4h3v8h2V8h3l-4-4z"/>
+        </svg>
+        <p>Нажмите или перетащите изображение сюда</p>
+        <p>JPG, PNG, JPEG — до 10MB</p>
+    </div>
+
+    <input type="file" id="fileInput" accept="image/*">
+    <img id="preview" alt="Предпросмотр">
+
+    <button id="recognizeBtn" disabled onclick="recognize()">
+        Распознать текст
+    </button>
+
+    <p id="status"></p>
+
+    <div id="result">
+        <h3>Результат распознавания:</h3>
+        <div id="resultText"></div>
+    </div>
+</div>
+
+<script>
+    const fileInput = document.getElementById('fileInput');
+    const preview = document.getElementById('preview');
+    const btn = document.getElementById('recognizeBtn');
+    const status = document.getElementById('status');
+    const result = document.getElementById('result');
+    const resultText = document.getElementById('resultText');
+
+    // Обработка выбора файла
+    fileInput.addEventListener('change', function() {
+        const file = this.files[0];
+        if (!file) return;
+
+        // Показываем предпросмотр
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            preview.src = e.target.result;
+            preview.style.display = 'block';
+        };
+        reader.readAsDataURL(file);
+
+        btn.disabled = false;
+        result.style.display = 'none';
+        status.textContent = `Файл выбран: ${file.name}`;
+    });
+
+    // Drag & Drop
+    const zone = document.querySelector('.upload-zone');
+    zone.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        zone.style.background = '#e8f4ff';
+    });
+    zone.addEventListener('dragleave', () => {
+        zone.style.background = '';
+    });
+    zone.addEventListener('drop', (e) => {
+        e.preventDefault();
+        zone.style.background = '';
+        const file = e.dataTransfer.files[0];
+        if (file) {
+            fileInput.files = e.dataTransfer.files;
+            fileInput.dispatchEvent(new Event('change'));
+        }
+    });
+
+    // Отправка на бэкенд
+    async function recognize() {
+        const file = fileInput.files[0];
+        if (!file) return;
+
+        btn.disabled = true;
+        btn.textContent = 'Распознаётся...';
+        status.className = '';
+        status.textContent = 'Обработка изображения, подождите...';
+        result.style.display = 'none';
+
+        const formData = new FormData();
+        formData.append('image', file);
+
+        try {
+            const response = await fetch('http://localhost:5000/recognize', {
+                method: 'POST',
+                body: formData
+            });
+
+            if (!response.ok) throw new Error('Ошибка сервера');
+
+            const data = await response.json();
+
+            resultText.textContent = data.text || '(текст не распознан)';
+            result.style.display = 'block';
+            status.textContent = '✅ Готово!';
+
+        } catch (err) {
+            status.className = 'error';
+            status.textContent = '❌ Ошибка: ' + err.message;
+        } finally {
+            btn.disabled = false;
+            btn.textContent = 'Распознать текст';
+        }
+    }
+</script>
+</body>
+</html>
