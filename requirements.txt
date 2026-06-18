@@ -1,5 +1,6 @@
-Flask==3.0.3
-Flask-Cors==5.0.0
-gunicorn==23.0.0
-Pillow==10.4.0
-easyocr==1.7.2
+Flask
+flask-cors
+easyocr
+opencv-python-headless
+numpy
+gunicorn
